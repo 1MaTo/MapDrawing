@@ -15,6 +15,8 @@ var fileName *string
 const (
 	correct = 500
 	pointR  = 1
+	picWidth = 1366
+	picHeight = 1024
 )
 
 func main() {
@@ -31,7 +33,7 @@ func main() {
 
 	fc, _ := geojson.UnmarshalFeatureCollection(buf)
 
-	dc := gg.NewContext(1366, 1024)
+	dc := gg.NewContext(picWidth, picHeight)
 	dc.InvertY()
 
 	for _, feature := range fc.Features {
