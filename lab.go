@@ -13,10 +13,11 @@ import (
 var fileName *string
 
 const (
-	correct = 500
+	correct = 0
 	pointR  = 1
 	picWidth = 1366
 	picHeight = 1024
+	scale = 7.0
 )
 
 func main() {
@@ -43,11 +44,18 @@ func main() {
 		switch feature.Geometry.Type {
 		case "Polygon":
 			for _, geom := range feature.Geometry.Polygon {
+				firstPoint, x0, y0 := true, 0.0, 0.0
 				for _, point := range geom {
 					x := point[0] + correct
 					y := point[1] + correct
+					if (firstPoint){
+						x0 = x
+						y0 = y 
+						firstPoint = false
+					}
 					dc.LineTo(x, y)
 				}
+				dc.LineTo(x0, y0)
 				drawPoly(dc)
 			}
 		case "LineString":
@@ -63,6 +71,31 @@ func main() {
 			y := feature.Geometry.Point[1] + correct
 			dc.DrawPoint(x, y, pointR)
 			drawP(dc)
+		case "MultiPolygon":
+			for _, geom := range feature.Geometry.MultiPolygon {
+				for _, poly := range geom {
+					firstPoint, x0, y0 := true, 0.0, 0.0
+					for _, point := range poly{
+						x := 0.0;
+						if (point[0] < -167.0){
+							x = (point[0]+360)  * scale  + correct
+						}else{
+							x = point[0] * scale + correct
+						}
+						y := point[1] * scale + correct
+						if (firstPoint){
+							dc.MoveTo(x, y)
+							x0 = x
+							y0 = y 
+							firstPoint = false
+						}else{
+							dc.LineTo(x, y)
+						}
+					}
+					dc.LineTo(x0, y0)
+				}
+				drawPoly(dc)
+			}
 		}
 	}
 	dc.SavePNG("out.png")
@@ -86,3 +119,5 @@ func drawP(dc *gg.Context) {
 	dc.SetRGBA(0.35, 0.35, 0.35, 0.5)
 	dc.Fill()
 }
+
+
