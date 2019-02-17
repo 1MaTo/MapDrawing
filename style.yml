@@ -13,3 +13,6 @@ admin_level:
  borderColor: "#ff5c33BB"
  fillColor: "#ff330033"
  lineWidth: 0.5
+lines:
+ road: "#CCCC00"
+ roadWidth: 5.0

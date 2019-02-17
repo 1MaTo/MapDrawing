@@ -30,6 +30,7 @@ var fileName *string
 
 type style struct {
 	AdLevel []adminLevel `yaml:"admin_level"`
+	Lines   lines        `yaml:"lines"`
 }
 
 type adminLevel struct {
@@ -37,6 +38,11 @@ type adminLevel struct {
 	BorderColor string  `yaml:"borderColor"`
 	FillColor   string  `yaml:"fillColor"`
 	LineWidth   float64 `yaml:"lineWidth"`
+}
+
+type lines struct {
+	Road   string  `yaml:"road"`
+	RWidth float64 `yaml:"roadWidth"`
 }
 
 func main() {
@@ -87,8 +93,8 @@ func main() {
 				y := geom[1] + correct
 				dc.LineTo(x, y)
 			}
-			//setStyle(dc, styles, feature.Properties)
-			drawLine(dc)
+			setLineStyle(dc, styles, feature.Properties)
+			//drawLine(dc)
 		case "Point":
 			x := feature.Geometry.Point[0] + correct
 			y := feature.Geometry.Point[1] + correct
@@ -151,6 +157,7 @@ func readStyles(styleFile string) style {
 	st := style{}
 	file, _ := ioutil.ReadFile(styleFile)
 	_ = yaml.Unmarshal(file, &st)
+	fmt.Printf("--- t:\n%v\n\n", st)
 	return st
 }
 
@@ -177,16 +184,29 @@ func setStyle(dc *gg.Context, st style, prop map[string]interface{}) {
 		} else {
 			dc.SetLineWidth(defLineWidth)
 		}
-		dc.Stroke()
 	} else {
 		dc.SetHexColor(defFillColor)
 		dc.FillPreserve()
 		dc.SetHexColor(defBorderColor)
 		dc.SetLineWidth(defLineWidth)
-		dc.Stroke()
 	}
+	dc.Stroke()
 }
 
 func setPointStyle(dc *gg.Context, st style, prop map[string]interface{}) {}
 
-func setLineStyle(dc *gg.Context, st style, prop map[string]interface{}) {}
+func setLineStyle(dc *gg.Context, st style, prop map[string]interface{}) {
+	err := prop["road"]
+	if err != nil {
+		roadValue, _ := strconv.ParseBool(prop["road"].(string))
+		if roadValue {
+			fmt.Println("RenderRoad")
+			dc.SetHexColor(st.Lines.Road)
+			dc.SetLineWidth(st.Lines.RWidth)
+		} else {
+			dc.SetHexColor(defBorderColor)
+			dc.SetLineWidth(defLineWidth)
+		}
+		dc.Stroke()
+	}
+}
