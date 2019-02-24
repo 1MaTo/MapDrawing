@@ -8,6 +8,7 @@ import (
 
 	"os"
 
+	"github.com/davvo/mercator"
 	"github.com/fogleman/gg"
 	"github.com/paulmach/go.geojson"
 	yaml "gopkg.in/yaml.v2"
@@ -15,14 +16,14 @@ import (
 )
 
 const (
-	correct        = 0
+	correct        = -1000.0
 	pointR         = 1
 	picWidth       = 1366
 	picHeight      = 1024
-	scale          = 7.0
+	scale          = 1.0
 	stylesName     = "style.yml"
 	defFillColor   = "#757575AA"
-	defBorderColor = "#0f0f0fAA"
+	defBorderColor = "#0f0f0fFF"
 	defLineWidth   = 0.5
 )
 
@@ -62,6 +63,7 @@ func main() {
 	styles := readStyles(stylesName)
 
 	dc := gg.NewContext(picWidth, picHeight)
+	dc.SetFillRule(gg.FillRuleEvenOdd)
 	dc.InvertY()
 
 	for _, feature := range fc.Features {
@@ -71,67 +73,100 @@ func main() {
 		switch feature.Geometry.Type {
 		case "Polygon":
 			for _, geom := range feature.Geometry.Polygon {
-				firstPoint, x0, y0 := true, 0.0, 0.0
 				for _, point := range geom {
-					x := point[0]*scale + correct
-					y := point[1]*scale + correct
-					if firstPoint {
-						x0 = x
-						y0 = y
-						firstPoint = false
+					x := 0.0
+					if point[0] < -167.0 {
+						point[0] = point[0] + 360
 					}
+					x, y := mercator.LatLonToPixels(point[1], point[0], 1)
+					x, y = scalePic(x, y)
 					dc.LineTo(x, y)
 				}
-				dc.LineTo(x0, y0)
+				dc.ClosePath()
 				setStyle(dc, styles, feature.Properties)
-				//level, _ := strconv.Atoi(feature.Properties["admin_level"].(string))
-				//drawPoly(dc)
 			}
 		case "LineString":
 			for _, geom := range feature.Geometry.LineString {
-				x := geom[0] + correct
-				y := geom[1] + correct
+				x, y := mercator.LatLonToPixels(geom[1], geom[0], 1)
+				x, y = scalePic(x, y)
 				dc.LineTo(x, y)
 			}
 			setLineStyle(dc, styles, feature.Properties)
-			//drawLine(dc)
 		case "Point":
-			x := feature.Geometry.Point[0] + correct
-			y := feature.Geometry.Point[1] + correct
+			x, y := mercator.LatLonToPixels(feature.Geometry.Point[1], feature.Geometry.Point[0], 1)
+			x, y = scalePic(x, y)
 			dc.DrawPoint(x, y, pointR)
 			setStyle(dc, styles, feature.Properties)
-			//drawP(dc)
 		case "MultiPolygon":
-			//level, _ := strconv.Atoi(feature.Properties["admin_level"].(string))
 			for _, geom := range feature.Geometry.MultiPolygon {
 				for _, poly := range geom {
-					firstPoint, x0, y0 := true, 0.0, 0.0
+					newSubPoly := true
 					for _, point := range poly {
-						x := 0.0
 						if point[0] < -167.0 {
-							x = (point[0]+360)*scale + correct
-						} else {
-							x = point[0]*scale + correct
+							point[0] = point[0] + 360
 						}
-						y := point[1]*scale + correct
-						if firstPoint {
+						x, y := mercator.LatLonToPixels(point[1], point[0], 3)
+						x, y = scalePic(x, y)
+						if newSubPoly {
 							dc.MoveTo(x, y)
-							x0 = x
-							y0 = y
-							firstPoint = false
+							newSubPoly = false
 						} else {
 							dc.LineTo(x, y)
 						}
 					}
-					dc.LineTo(x0, y0)
 				}
-				//drawPoly(dc, styles.AdLevel[level].FillColor, styles.AdLevel[level].BorderColor, styles.AdLevel[level].LineWidth)
+				dc.ClosePath()
 				setStyle(dc, styles, feature.Properties)
 			}
 		}
 	}
-
+	drawLegend(dc, styles)
 	dc.SavePNG("out.png")
+}
+
+func drawLegend(dc *gg.Context, st style) {
+	textX := 30.0
+	textY := picHeight - 150.0
+	textSize := 24.0
+	shiftY := 50.0
+	drawLegendBack(dc)
+	drawLegendText(dc, textX, textY, textSize, "Administrative level 2   - ")
+	drawInvRec(dc, textX+215, textY-20)
+	drawStyle(dc, st, 2)
+	drawLegendText(dc, textX, textY+shiftY, textSize, "Administrative level 3   - ")
+	drawInvRec(dc, textX+215, textY-20+shiftY)
+	drawStyle(dc, st, 3)
+}
+
+func drawInvRec(dc *gg.Context, x, y float64) {
+	dc.InvertY()
+	dc.DrawRectangle(x, y, 25.0, 25.0)
+	dc.InvertY()
+}
+
+func drawLegendBack(dc *gg.Context) {
+	dc.DrawRectangle(0.0, 0.0, 300.0, 200.0)
+	dc.SetRGB255(255, 255, 255)
+	dc.FillPreserve()
+	dc.SetRGBA255(249, 188, 189, 255)
+	dc.SetLineWidth(1.5)
+	dc.Stroke()
+}
+
+func drawLegendText(dc *gg.Context, x, y, size float64, text string) {
+	dc.LoadFontFace("./fonts/FRIZQT__.ttf", size)
+	dc.InvertY()
+	dc.SetRGB255(0, 0, 0)
+	dc.DrawString(text, x, y)
+	dc.InvertY()
+}
+
+func drawStyle(dc *gg.Context, st style, i int) {
+	dc.SetHexColor(st.AdLevel[i].FillColor)
+	dc.FillPreserve()
+	dc.SetHexColor(st.AdLevel[i].BorderColor)
+	dc.SetLineWidth(st.AdLevel[i].LineWidth)
+	dc.Stroke()
 }
 
 func drawPoly(dc *gg.Context, fillColor string, borderColor string, lineWidth float64) {
@@ -146,6 +181,12 @@ func drawLine(dc *gg.Context) {
 	dc.SetRGBA(1, 0, 0, 0.5)
 	dc.SetLineWidth(0.5)
 	dc.Stroke()
+}
+
+func scalePic(x, y float64) (float64, float64) {
+	x = x*scale + correct
+	y = y*scale + correct
+	return x, y
 }
 
 func drawP(dc *gg.Context) {
